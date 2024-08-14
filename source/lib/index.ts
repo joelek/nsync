@@ -61,7 +61,7 @@ export class InvalidEntryType extends Error {
 	}
 
 	get message(): string {
-		return `Expected paths "${this.path}" to be a directory or a file!`;
+		return `Expected path "${this.path}" to be a directory or a file!`;
 	}
 };
 
