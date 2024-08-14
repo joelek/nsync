@@ -309,7 +309,7 @@ export async function diff(config: Config): Promise<void> {
 			let target_fs = new LocalFileSystem(false);
 			process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 			if (await source_fs.getStat(source) == null) {
-				throw new ExpectedPathError(source);
+				throw new ExpectedPathError(source_fs.formatPath(source));
 			}
 			if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
 				throw new InvalidPathRelationError(source, target);
@@ -334,7 +334,7 @@ export async function sync(config: Config): Promise<void> {
 			let target_fs = new LocalFileSystem(true);
 			process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 			if (await source_fs.getStat(source) == null) {
-				throw new ExpectedPathError(source);
+				throw new ExpectedPathError(source_fs.formatPath(source));
 			}
 			if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
 				throw new InvalidPathRelationError(source, target);
