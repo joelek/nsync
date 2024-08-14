@@ -246,7 +246,8 @@ class LocalFileSystem extends AbstractFileSystem {
 	}
 };
 
-async function processRecursively(source_fs: AbstractFileSystem, target_fs: AbstractFileSystem, source: string, target: string): Promise<void> {
+async function processRecursively(source_fs: AbstractFileSystem, target_fs: AbstractFileSystem, source: string, target: string): Promise<number> {
+	let total = 0;
 	let source_stat = await target_fs.getStat(source);
 	let target_stat = await target_fs.getStat(target);
 	if (source_stat != null) {
@@ -256,23 +257,23 @@ async function processRecursively(source_fs: AbstractFileSystem, target_fs: Abst
 					let source_entries = new Set(await source_fs.listDirectoryEntries(source));
 					let target_entries = new Set(await target_fs.listDirectoryEntries(target));
 					for (let source_entry of source_entries) {
-						await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+						total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
 					}
 					for (let target_entry of target_entries) {
 						if (!source_entries.has(target_entry)) {
-							await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
+							total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
 						}
 					}
 				} else {
 					await target_fs.removeFile(target);
 					for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-						await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+						total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
 					}
 				}
 			} else {
 				await target_fs.createDirectory(target);
 				for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-					await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+					total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
 				}
 			}
 		} else {
@@ -303,6 +304,7 @@ async function processRecursively(source_fs: AbstractFileSystem, target_fs: Abst
 			}
 		}
 	}
+	return total + 1;
 };
 
 export const Config = guards.Object.of({
