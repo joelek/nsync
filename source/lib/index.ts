@@ -28,28 +28,8 @@ export class InvalidPathRelationError extends Error {
 	}
 
 	get message(): string {
-		return `Expected paths "${this.source}" and "${this.target}" to have a disjoint path relationship!`;
+		return `Expected path "${this.source}" to not contain path "${this.target}"!`;
 	}
-};
-
-enum PathRelationship {
-	IDENTICAL,
-	DISJOINT,
-	CONTAINED
-};
-
-function determinePathRelationship(source: string, target: string): PathRelationship {
-	let target_path_relative_to_source = libpath.relative(source, target);
-	if (target_path_relative_to_source === "") {
-		return PathRelationship.IDENTICAL;
-	}
-	if (target_path_relative_to_source.startsWith("..")) {
-		return PathRelationship.DISJOINT;
-	}
-	if (libpath.isAbsolute(target_path_relative_to_source)) {
-		return PathRelationship.DISJOINT;
-	}
-	return PathRelationship.CONTAINED;
 };
 
 export class InvalidEntryType extends Error {
@@ -83,6 +63,7 @@ type FileStat = {
 abstract class AbstractFileSystem {
 	constructor() {}
 
+	abstract containsPath(path: string, subject_fs: AbstractFileSystem, subject: string): boolean;
 	abstract createDirectory(path: string): Promise<void>;
 	abstract createFile(path: string, readable: libstream.Readable, timestamp: number): Promise<void>;
 	abstract createReadable(path: string): Promise<libstream.Readable>;
@@ -123,6 +104,24 @@ class LocalFileSystem extends AbstractFileSystem {
 			directories_created: 0,
 			directories_removed: 0
 		};
+	}
+
+	containsPath(path: string, subject_fs: AbstractFileSystem, subject: string): boolean {
+		if (subject_fs instanceof LocalFileSystem) {
+			let path_components = this.getPathComponents(path);
+			let subject_path_components = subject_fs.getPathComponents(subject);
+			if (subject_path_components.length < path_components.length) {
+				return false;
+			}
+			for (let [index, path_component] of path_components.entries()) {
+				if (subject_path_components[index] !== path_component) {
+					return false;
+				}
+			}
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	async createDirectory(path: string): Promise<void> {
@@ -311,11 +310,11 @@ export async function diff(config: Config): Promise<void> {
 			if (await source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source_fs.formatPath(source));
 			}
-			if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
-				throw new InvalidPathRelationError(source, target);
+			if (source_fs.containsPath(source, target_fs, target)) {
+				throw new InvalidPathRelationError(source_fs.formatPath(source), target_fs.formatPath(target));
 			}
-			if (determinePathRelationship(target, source) !== PathRelationship.DISJOINT) {
-				throw new InvalidPathRelationError(target, source);
+			if (target_fs.containsPath(target, source_fs, source)) {
+				throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
 			}
 			await processRecursively(source_fs, target_fs, source, target);
 		} catch (error) {
@@ -336,11 +335,11 @@ export async function sync(config: Config): Promise<void> {
 			if (await source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source_fs.formatPath(source));
 			}
-			if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
-				throw new InvalidPathRelationError(source, target);
+			if (source_fs.containsPath(source, target_fs, target)) {
+				throw new InvalidPathRelationError(source_fs.formatPath(source), target_fs.formatPath(target));
 			}
-			if (determinePathRelationship(target, source) !== PathRelationship.DISJOINT) {
-				throw new InvalidPathRelationError(target, source);
+			if (target_fs.containsPath(target, source_fs, source)) {
+				throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
 			}
 			await processRecursively(source_fs, target_fs, source, target);
 		} catch (error) {
