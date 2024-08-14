@@ -338,6 +338,7 @@ function createFileSystem(sync: boolean, path: string): AbstractFileSystem {
 export async function diff(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
 		try {
+			let start_ms = Date.now();
 			let source_fs = createFileSystem(false, source);
 			let target_fs = createFileSystem(false, target);
 			process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
@@ -350,7 +351,9 @@ export async function diff(config: Config): Promise<void> {
 			if (target_fs.containsPath(target, source_fs, source)) {
 				throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
 			}
-			await processRecursively(source_fs, target_fs, source, target);
+			let total = await processRecursively(source_fs, target_fs, source, target);
+			let duration_ms = Date.now() - start_ms;
+			process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
 		} catch (error) {
 			process.stderr.write(`An error occurred!\n`);
 			if (error instanceof Error) {
@@ -363,6 +366,7 @@ export async function diff(config: Config): Promise<void> {
 export async function sync(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
 		try {
+			let start_ms = Date.now();
 			let source_fs = createFileSystem(false, source);
 			let target_fs = createFileSystem(true, target);
 			process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
@@ -375,7 +379,9 @@ export async function sync(config: Config): Promise<void> {
 			if (target_fs.containsPath(target, source_fs, source)) {
 				throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
 			}
-			await processRecursively(source_fs, target_fs, source, target);
+			let total = await processRecursively(source_fs, target_fs, source, target);
+			let duration_ms = Date.now() - start_ms;
+			process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
 		} catch (error) {
 			process.stderr.write(`An error occurred!\n`);
 			if (error instanceof Error) {
