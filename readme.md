@@ -36,3 +36,4 @@ NB: This project targets TypeScript 4 in strict mode.
 
 * Implement SCP support.
 * Document features.
+* Implement `determinePathRelationship()` through `AbstractFileSystem`.
