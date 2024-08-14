@@ -83,6 +83,7 @@ abstract class AbstractFileSystem {
 	abstract createReadable(path: string): Promise<libstream.Readable>;
 	abstract formatPath(path: string): string;
 	abstract getStat(path: string): Promise<DirectoryStat | FileStat | undefined>;
+	abstract getStatistics(): FileSystemStatistics;
 	abstract joinPath(path: string, entry: string): string;
 	abstract listDirectoryEntries(path: string): Promise<Array<string>>;
 	abstract removeDirectory(path: string): Promise<void>;
@@ -196,6 +197,12 @@ class LocalFileSystem extends AbstractFileSystem {
 			}
 			throw new InvalidEntryType(path);
 		}
+	}
+
+	getStatistics(): FileSystemStatistics {
+		return {
+			...this.statistics
+		};
 	}
 
 	joinPath(path: string, entry: string): string {
