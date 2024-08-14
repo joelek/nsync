@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 define("build/app", [], {
     "name": "@joelek/nsync",
-    "timestamp": 1723631268100,
-    "version": "0.1.0"
+    "timestamp": 1723632210593,
+    "version": "0.1.1"
 });
 define("node_modules/@joelek/ts-autoguard/dist/lib-shared/serialization", ["require", "exports"], function (require, exports) {
     "use strict";
@@ -643,22 +643,6 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     Object.defineProperty(exports, "__esModule", { value: true });
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.sync = exports.diff = exports.loadConfig = exports.Config = exports.InvalidEntryType = exports.InvalidPathRelationError = exports.ExpectedPathError = void 0;
-    function getPathComponents(path) {
-        let resolved = libpath.resolve(path);
-        let parsed = libpath.parse(resolved);
-        let directories = parsed.dir.split(libpath.sep);
-        let entry = parsed.base;
-        return [...directories, entry];
-    }
-    ;
-    function formatPathComponents(components) {
-        return components.join(libpath.sep);
-    }
-    ;
-    function formatPath(path) {
-        return formatPathComponents(getPathComponents(path));
-    }
-    ;
     class ExpectedPathError extends Error {
         path;
         constructor(path) {
@@ -731,6 +715,13 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     class LocalFileSystem extends AbstractFileSystem {
         sync;
         statistics;
+        getPathComponents(path) {
+            let resolved = libpath.resolve(path);
+            let parsed = libpath.parse(resolved);
+            let directories = parsed.dir.split(libpath.sep);
+            let entry = parsed.base;
+            return [...directories, entry];
+        }
         constructor(sync) {
             super();
             this.sync = sync;
@@ -742,14 +733,14 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
             };
         }
         async createDirectory(path) {
-            process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
+            process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
             if (this.sync) {
                 libfs.mkdirSync(path);
                 this.statistics.directories_created += 1;
             }
         }
         async createFile(path, readable, timestamp) {
-            process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
+            process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
             if (this.sync) {
                 libfs.writeFileSync(path, Uint8Array.of());
                 try {
@@ -776,6 +767,9 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
             let readable = libfs.createReadStream(path);
             return readable;
         }
+        formatPath(path) {
+            return this.getPathComponents(path).join(libpath.sep);
+        }
         async getStat(path) {
             if (libfs.existsSync(path)) {
                 let stat = libfs.statSync(path);
@@ -794,11 +788,14 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 throw new InvalidEntryType(path);
             }
         }
+        joinPath(path, entry) {
+            return libpath.join(path, entry);
+        }
         async listDirectoryEntries(path) {
             return libfs.readdirSync(path).sort();
         }
         async removeDirectory(path) {
-            process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
+            process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
             if (this.sync) {
                 libfs.rmdirSync(path);
                 this.statistics.directories_removed += 1;
@@ -807,21 +804,21 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
         async removeDirectoryEntries(target) {
             let entries = await this.listDirectoryEntries(target);
             for (let target_entry of entries.reverse()) {
-                let new_target = libpath.join(target, target_entry);
+                let new_target = this.joinPath(target, target_entry);
                 let new_target_stat = await this.getStat(new_target);
                 if (new_target_stat != null) {
                     if (new_target_stat.type === EntryType.DIRECTORY) {
-                        this.removeDirectoryEntries(new_target);
-                        this.removeDirectory(new_target);
+                        await this.removeDirectoryEntries(new_target);
+                        await this.removeDirectory(new_target);
                     }
                     else {
-                        this.removeFile(new_target);
+                        await this.removeFile(new_target);
                     }
                 }
             }
         }
         async removeFile(path) {
-            process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
+            process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
             if (this.sync) {
                 libfs.rmSync(path);
                 this.statistics.files_removed += 1;
@@ -839,25 +836,25 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                         let source_entries = new Set(await source_fs.listDirectoryEntries(source));
                         let target_entries = new Set(await target_fs.listDirectoryEntries(target));
                         for (let source_entry of source_entries) {
-                            await processRecursively(source_fs, target_fs, libpath.join(source, source_entry), libpath.join(target, source_entry));
+                            await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
                         }
                         for (let target_entry of target_entries) {
                             if (!source_entries.has(target_entry)) {
-                                await processRecursively(source_fs, target_fs, libpath.join(source, target_entry), libpath.join(target, target_entry));
+                                await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
                             }
                         }
                     }
                     else {
                         await target_fs.removeFile(target);
                         for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-                            await processRecursively(source_fs, target_fs, libpath.join(source, source_entry), libpath.join(target, source_entry));
+                            await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
                         }
                     }
                 }
                 else {
                     await target_fs.createDirectory(target);
                     for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-                        await processRecursively(source_fs, target_fs, libpath.join(source, source_entry), libpath.join(target, source_entry));
+                        await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
                     }
                 }
             }
@@ -910,11 +907,11 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     ;
     async function diff(config) {
         for (let { source, target } of config.tasks) {
-            process.stdout.write(`Performing diff from ${terminal.stylize("\"" + formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
-            let source_fs = new LocalFileSystem(false);
-            let target_fs = new LocalFileSystem(false);
             try {
-                if (source_fs.getStat(source) == null) {
+                let source_fs = new LocalFileSystem(false);
+                let target_fs = new LocalFileSystem(false);
+                process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
+                if (await source_fs.getStat(source) == null) {
                     throw new ExpectedPathError(source);
                 }
                 if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
@@ -937,11 +934,11 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     ;
     async function sync(config) {
         for (let { source, target } of config.tasks) {
-            process.stdout.write(`Performing sync from ${terminal.stylize("\"" + formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
             try {
                 let source_fs = new LocalFileSystem(false);
                 let target_fs = new LocalFileSystem(true);
-                if (source_fs.getStat(source) == null) {
+                process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
+                if (await source_fs.getStat(source) == null) {
                     throw new ExpectedPathError(source);
                 }
                 if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
