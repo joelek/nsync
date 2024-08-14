@@ -4,22 +4,6 @@ import * as libpath from "path";
 import * as libstream from "stream";
 import * as terminal from "./terminal";
 
-function getPathComponents(path: string): Array<string> {
-	let resolved = libpath.resolve(path);
-	let parsed = libpath.parse(resolved);
-	let directories = parsed.dir.split(libpath.sep);
-	let entry = parsed.base;
-	return [...directories, entry];
-};
-
-function formatPathComponents(components: Array<string>): string {
-	return components.join(libpath.sep);
-};
-
-function formatPath(path: string): string {
-	return formatPathComponents(getPathComponents(path));
-};
-
 export class ExpectedPathError extends Error {
 	protected path: string;
 
@@ -102,7 +86,9 @@ abstract class AbstractFileSystem {
 	abstract createDirectory(path: string): Promise<void>;
 	abstract createFile(path: string, readable: libstream.Readable, timestamp: number): Promise<void>;
 	abstract createReadable(path: string): Promise<libstream.Readable>;
+	abstract formatPath(path: string): string;
 	abstract getStat(path: string): Promise<DirectoryStat | FileStat | undefined>;
+	abstract joinPath(path: string, entry: string): string;
 	abstract listDirectoryEntries(path: string): Promise<Array<string>>;
 	abstract removeDirectory(path: string): Promise<void>;
 	abstract removeDirectoryEntries(target: string): Promise<void>;
@@ -120,6 +106,14 @@ class LocalFileSystem extends AbstractFileSystem {
 	protected sync: boolean;
 	protected statistics: FileSystemStatistics;
 
+	protected getPathComponents(path: string): Array<string> {
+		let resolved = libpath.resolve(path);
+		let parsed = libpath.parse(resolved);
+		let directories = parsed.dir.split(libpath.sep);
+		let entry = parsed.base;
+		return [...directories, entry];
+	}
+
 	constructor(sync: boolean) {
 		super();
 		this.sync = sync;
@@ -132,7 +126,7 @@ class LocalFileSystem extends AbstractFileSystem {
 	}
 
 	async createDirectory(path: string): Promise<void> {
-		process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
+		process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
 		if (this.sync) {
 			libfs.mkdirSync(path);
 			this.statistics.directories_created += 1;
@@ -140,7 +134,7 @@ class LocalFileSystem extends AbstractFileSystem {
 	}
 
 	async createFile(path: string, readable: libstream.Readable, timestamp: number): Promise<void> {
-		process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
+		process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
 		if (this.sync) {
 			libfs.writeFileSync(path, Uint8Array.of());
 			try {
@@ -168,6 +162,10 @@ class LocalFileSystem extends AbstractFileSystem {
 		return readable;
 	}
 
+	formatPath(path: string): string {
+		return this.getPathComponents(path).join(libpath.sep);
+	}
+
 	async getStat(path: string): Promise<DirectoryStat | FileStat | undefined> {
 		if (libfs.existsSync(path)) {
 			let stat = libfs.statSync(path);
@@ -187,12 +185,16 @@ class LocalFileSystem extends AbstractFileSystem {
 		}
 	}
 
+	joinPath(path: string, entry: string): string {
+		return libpath.join(path, entry);
+	}
+
 	async listDirectoryEntries(path: string): Promise<Array<string>> {
 		return libfs.readdirSync(path).sort();
 	}
 
 	async removeDirectory(path: string): Promise<void> {
-		process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
+		process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
 		if (this.sync) {
 			libfs.rmdirSync(path);
 			this.statistics.directories_removed += 1;
@@ -202,7 +204,7 @@ class LocalFileSystem extends AbstractFileSystem {
 	async removeDirectoryEntries(target: string): Promise<void> {
 		let entries = await this.listDirectoryEntries(target);
 		for (let target_entry of entries.reverse()) {
-			let new_target = libpath.join(target, target_entry);
+			let new_target = this.joinPath(target, target_entry);
 			let new_target_stat = await this.getStat(new_target);
 			if (new_target_stat != null) {
 				if (new_target_stat.type === EntryType.DIRECTORY) {
@@ -216,7 +218,7 @@ class LocalFileSystem extends AbstractFileSystem {
 	}
 
 	async removeFile(path: string): Promise<void> {
-		process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
+		process.stdout.write(`${terminal.stylize("remove", terminal.FG_RED)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(file)", terminal.FG_CYAN)}\n`);
 		if (this.sync) {
 			libfs.rmSync(path);
 			this.statistics.files_removed += 1;
@@ -234,23 +236,23 @@ async function processRecursively(source_fs: AbstractFileSystem, target_fs: Abst
 					let source_entries = new Set(await source_fs.listDirectoryEntries(source));
 					let target_entries = new Set(await target_fs.listDirectoryEntries(target));
 					for (let source_entry of source_entries) {
-						await processRecursively(source_fs, target_fs, libpath.join(source, source_entry), libpath.join(target, source_entry));
+						await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
 					}
 					for (let target_entry of target_entries) {
 						if (!source_entries.has(target_entry)) {
-							await processRecursively(source_fs, target_fs, libpath.join(source, target_entry), libpath.join(target, target_entry));
+							await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
 						}
 					}
 				} else {
 					await target_fs.removeFile(target);
 					for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-						await processRecursively(source_fs, target_fs, libpath.join(source, source_entry), libpath.join(target, source_entry));
+						await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
 					}
 				}
 			} else {
 				await target_fs.createDirectory(target);
 				for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-					await processRecursively(source_fs, target_fs, libpath.join(source, source_entry), libpath.join(target, source_entry));
+					await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
 				}
 			}
 		} else {
@@ -302,10 +304,10 @@ export function loadConfig(path: string): Config {
 
 export async function diff(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
-		process.stdout.write(`Performing diff from ${terminal.stylize("\"" + formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 		try {
 			let source_fs = new LocalFileSystem(false);
 			let target_fs = new LocalFileSystem(false);
+			process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 			if (source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source);
 			}
@@ -327,10 +329,10 @@ export async function diff(config: Config): Promise<void> {
 
 export async function sync(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
-		process.stdout.write(`Performing sync from ${terminal.stylize("\"" + formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 		try {
 			let source_fs = new LocalFileSystem(false);
 			let target_fs = new LocalFileSystem(true);
+			process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 			if (source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source);
 			}
