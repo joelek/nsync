@@ -303,9 +303,9 @@ export function loadConfig(path: string): Config {
 export async function diff(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
 		process.stdout.write(`Performing diff from ${terminal.stylize("\"" + formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
-		let source_fs = new LocalFileSystem(false);
-		let target_fs = new LocalFileSystem(false);
 		try {
+			let source_fs = new LocalFileSystem(false);
+			let target_fs = new LocalFileSystem(false);
 			if (source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source);
 			}
