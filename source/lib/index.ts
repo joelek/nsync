@@ -208,10 +208,10 @@ class LocalFileSystem extends AbstractFileSystem {
 			let new_target_stat = await this.getStat(new_target);
 			if (new_target_stat != null) {
 				if (new_target_stat.type === EntryType.DIRECTORY) {
-					this.removeDirectoryEntries(new_target);
-					this.removeDirectory(new_target)
+					await this.removeDirectoryEntries(new_target);
+					await this.removeDirectory(new_target)
 				} else {
-					this.removeFile(new_target);
+					await this.removeFile(new_target);
 				}
 			}
 		}
@@ -308,7 +308,7 @@ export async function diff(config: Config): Promise<void> {
 			let source_fs = new LocalFileSystem(false);
 			let target_fs = new LocalFileSystem(false);
 			process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
-			if (source_fs.getStat(source) == null) {
+			if (await source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source);
 			}
 			if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
@@ -333,7 +333,7 @@ export async function sync(config: Config): Promise<void> {
 			let source_fs = new LocalFileSystem(false);
 			let target_fs = new LocalFileSystem(true);
 			process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
-			if (source_fs.getStat(source) == null) {
+			if (await source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source);
 			}
 			if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
