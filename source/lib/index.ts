@@ -91,7 +91,7 @@ abstract class AbstractFileSystem {
 	abstract joinPath(path: string, entry: string): string;
 	abstract listDirectoryEntries(path: string): Promise<Array<string>>;
 	abstract removeDirectory(path: string): Promise<void>;
-	abstract removeDirectoryEntries(target: string): Promise<void>;
+	abstract removeDirectoryEntries(path: string): Promise<void>;
 	abstract removeFile(path: string): Promise<void>;
 };
 
@@ -201,17 +201,17 @@ class LocalFileSystem extends AbstractFileSystem {
 		}
 	}
 
-	async removeDirectoryEntries(target: string): Promise<void> {
-		let entries = await this.listDirectoryEntries(target);
-		for (let target_entry of entries.reverse()) {
-			let new_target = this.joinPath(target, target_entry);
-			let new_target_stat = await this.getStat(new_target);
-			if (new_target_stat != null) {
-				if (new_target_stat.type === EntryType.DIRECTORY) {
-					await this.removeDirectoryEntries(new_target);
-					await this.removeDirectory(new_target)
+	async removeDirectoryEntries(path: string): Promise<void> {
+		let entries = await this.listDirectoryEntries(path);
+		for (let entry of entries.reverse()) {
+			let new_path = this.joinPath(path, entry);
+			let new_path_stat = await this.getStat(new_path);
+			if (new_path_stat != null) {
+				if (new_path_stat.type === EntryType.DIRECTORY) {
+					await this.removeDirectoryEntries(new_path);
+					await this.removeDirectory(new_path)
 				} else {
-					await this.removeFile(new_target);
+					await this.removeFile(new_path);
 				}
 			}
 		}
