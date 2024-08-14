@@ -2,7 +2,21 @@ import * as guards from "@joelek/ts-autoguard/dist/lib-shared/guards";
 import * as libfs from "fs";
 import * as libpath from "path";
 import * as libstream from "stream";
+import * as liburl from "url";
 import * as terminal from "./terminal";
+
+export class UnsupportedProtocolError extends Error {
+	protected protocol: string;
+
+	constructor(protocol: string) {
+		super();
+		this.protocol = protocol;
+	}
+
+	get message(): string {
+		return `Unsupported protocol "${this.protocol}"!`;
+	}
+};
 
 export class ExpectedPathError extends Error {
 	protected path: string;
@@ -301,11 +315,22 @@ export function loadConfig(path: string): Config {
 	return Config.as(json);
 };
 
+function createFileSystem(sync: boolean, path: string): AbstractFileSystem {
+	try {
+		let url = new liburl.URL(path);
+		if (url.protocol === "scp:") {
+			// TODO: Return SCP implementation.
+		}
+		throw new UnsupportedProtocolError(url.protocol);
+	} catch (error) {}
+	return new LocalFileSystem(sync);
+};
+
 export async function diff(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
 		try {
-			let source_fs = new LocalFileSystem(false);
-			let target_fs = new LocalFileSystem(false);
+			let source_fs = createFileSystem(false, source);
+			let target_fs = createFileSystem(false, target);
 			process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 			if (await source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source_fs.formatPath(source));
@@ -329,8 +354,8 @@ export async function diff(config: Config): Promise<void> {
 export async function sync(config: Config): Promise<void> {
 	for (let { source, target } of config.tasks) {
 		try {
-			let source_fs = new LocalFileSystem(false);
-			let target_fs = new LocalFileSystem(true);
+			let source_fs = createFileSystem(false, source);
+			let target_fs = createFileSystem(true, target);
 			process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
 			if (await source_fs.getStat(source) == null) {
 				throw new ExpectedPathError(source_fs.formatPath(source));
