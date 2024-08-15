@@ -9,17 +9,24 @@ async function diff(): Promise<void> {
 	};
 	let source: string | undefined;
 	let target: string | undefined;
+	let overwrite: boolean | undefined;
+	function clearTask(): void {
+		source = undefined;
+		target = undefined;
+		overwrite = undefined;
+	}
 	function checkTask(): void {
 		if (source != null && target != null) {
 			config.tasks.push({
 				source,
-				target
+				target,
+				overwrite
 			});
-			source = undefined;
-			target = undefined;
+			clearTask();
 		}
 	}
 	let unrecognized_arguments = [] as Array<string>;
+	let positional_index = 0;
 	for (let [index, arg] of process.argv.slice(3).entries()) {
 		let parts: RegExpExecArray | null = null;
 		if ((parts = /^--source=(.+)$/.exec(arg)) != null) {
@@ -32,19 +39,27 @@ async function diff(): Promise<void> {
 			checkTask();
 			continue;
 		}
+		if ((parts = /^--overwrite=(.+)$/.exec(arg)) != null) {
+			overwrite = parts[1] === "true";
+			checkTask();
+			continue;
+		}
 		if ((parts = /^--config=(.+)$/.exec(arg)) != null) {
 			let path = parts[1];
 			config = lib.loadConfig(path);
+			clearTask();
 			continue;
 		}
-		if (index === 0) {
+		if (positional_index % 2 === 0) {
 			source = arg;
 			checkTask();
+			positional_index += 1;
 			continue;
 		}
-		if (index === 1) {
+		if (positional_index % 2 === 1) {
 			target = arg;
 			checkTask();
+			positional_index += 1;
 			continue;
 		}
 		unrecognized_arguments.push(arg);
@@ -61,6 +76,8 @@ async function diff(): Promise<void> {
 		process.stderr.write(`		Set source path.\n`);
 		process.stderr.write(`	--target=string\n`);
 		process.stderr.write(`		Set target path.\n`);
+		process.stderr.write(`	--overwrite=boolean\n`);
+		process.stderr.write(`		Configure overwriting of files with identical metadata (defaults to false).\n`);
 		process.stderr.write(`	--config=string\n`);
 		process.stderr.write(`		Load config from path.\n`);
 		process.exit(0);
@@ -76,17 +93,24 @@ async function sync(): Promise<void> {
 	};
 	let source: string | undefined;
 	let target: string | undefined;
+	let overwrite: boolean | undefined;
+	function clearTask(): void {
+		source = undefined;
+		target = undefined;
+		overwrite = undefined;
+	}
 	function checkTask(): void {
 		if (source != null && target != null) {
 			config.tasks.push({
 				source,
-				target
+				target,
+				overwrite
 			});
-			source = undefined;
-			target = undefined;
+			clearTask();
 		}
 	}
 	let unrecognized_arguments = [] as Array<string>;
+	let positional_index = 0;
 	for (let [index, arg] of process.argv.slice(3).entries()) {
 		let parts: RegExpExecArray | null = null;
 		if ((parts = /^--source=(.+)$/.exec(arg)) != null) {
@@ -99,19 +123,27 @@ async function sync(): Promise<void> {
 			checkTask();
 			continue;
 		}
+		if ((parts = /^--overwrite=(.+)$/.exec(arg)) != null) {
+			overwrite = parts[1] === "true";
+			checkTask();
+			continue;
+		}
 		if ((parts = /^--config=(.+)$/.exec(arg)) != null) {
 			let path = parts[1];
 			config = lib.loadConfig(path);
+			clearTask()
 			continue;
 		}
-		if (index === 0) {
+		if (positional_index % 2 === 0) {
 			source = arg;
 			checkTask();
+			positional_index += 1;
 			continue;
 		}
-		if (index === 1) {
+		if (positional_index % 2 === 1) {
 			target = arg;
 			checkTask();
+			positional_index += 1;
 			continue;
 		}
 		unrecognized_arguments.push(arg);
@@ -128,6 +160,8 @@ async function sync(): Promise<void> {
 		process.stderr.write(`		Set source path.\n`);
 		process.stderr.write(`	--target=string\n`);
 		process.stderr.write(`		Set target path.\n`);
+		process.stderr.write(`	--overwrite=boolean\n`);
+		process.stderr.write(`		Configure overwriting of files with identical metadata (defaults to false).\n`);
 		process.stderr.write(`	--config=string\n`);
 		process.stderr.write(`		Load config from path.\n`);
 		process.exit(0);
