@@ -96,6 +96,7 @@ type FileSystemStatistics = {
 	files_removed: number;
 	directories_created: number;
 	directories_removed: number;
+	bytes_written: number;
 };
 
 class LocalFileSystem extends AbstractFileSystem {
@@ -117,7 +118,8 @@ class LocalFileSystem extends AbstractFileSystem {
 			files_created: 0,
 			files_removed: 0,
 			directories_created: 0,
-			directories_removed: 0
+			directories_removed: 0,
+			bytes_written: 0
 		};
 	}
 
@@ -156,6 +158,7 @@ class LocalFileSystem extends AbstractFileSystem {
 					let writable = libfs.createWriteStream(path);
 					writable.on("close", () => {
 						this.statistics.files_created += 1;
+						this.statistics.bytes_written += writable.bytesWritten;
 						resolve();
 					});
 					writable.on("error", (error) => {
@@ -352,8 +355,9 @@ export async function diff(config: Config): Promise<void> {
 				throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
 			}
 			let total = await processRecursively(source_fs, target_fs, source, target);
+			let statistics = target_fs.getStatistics();
 			let duration_ms = Date.now() - start_ms;
-			process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
+			process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires and wrote ${terminal.stylize(statistics.bytes_written, terminal.FG_CYAN)} bytes in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
 		} catch (error) {
 			process.stderr.write(`An error occurred!\n`);
 			if (error instanceof Error) {
@@ -380,8 +384,9 @@ export async function sync(config: Config): Promise<void> {
 				throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
 			}
 			let total = await processRecursively(source_fs, target_fs, source, target);
+			let statistics = target_fs.getStatistics();
 			let duration_ms = Date.now() - start_ms;
-			process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
+			process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires and wrote ${terminal.stylize(statistics.bytes_written, terminal.FG_CYAN)} bytes in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
 		} catch (error) {
 			process.stderr.write(`An error occurred!\n`);
 			if (error instanceof Error) {
