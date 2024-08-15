@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 define("build/app", [], {
     "name": "@joelek/nsync",
-    "timestamp": 1723632210593,
+    "timestamp": 1723701269075,
     "version": "0.1.1"
 });
 define("node_modules/@joelek/ts-autoguard/dist/lib-shared/serialization", ["require", "exports"], function (require, exports) {
@@ -638,11 +638,23 @@ define("build/lib/terminal", ["require", "exports"], function (require, exports)
     exports.stylize = stylize;
     ;
 });
-define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autoguard/dist/lib-shared/guards", "fs", "path", "build/lib/terminal"], function (require, exports, guards, libfs, libpath, terminal) {
+define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autoguard/dist/lib-shared/guards", "fs", "path", "url", "build/lib/terminal"], function (require, exports, guards, libfs, libpath, liburl, terminal) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.sync = exports.diff = exports.loadConfig = exports.Config = exports.InvalidEntryType = exports.InvalidPathRelationError = exports.ExpectedPathError = void 0;
+    exports.sync = exports.diff = exports.loadConfig = exports.Config = exports.InvalidEntryType = exports.InvalidPathRelationError = exports.ExpectedPathError = exports.UnsupportedProtocolError = void 0;
+    class UnsupportedProtocolError extends Error {
+        protocol;
+        constructor(protocol) {
+            super();
+            this.protocol = protocol;
+        }
+        get message() {
+            return `Unsupported protocol "${this.protocol}"!`;
+        }
+    }
+    exports.UnsupportedProtocolError = UnsupportedProtocolError;
+    ;
     class ExpectedPathError extends Error {
         path;
         constructor(path) {
@@ -664,31 +676,10 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
             this.target = target;
         }
         get message() {
-            return `Expected paths "${this.source}" and "${this.target}" to have a disjoint path relationship!`;
+            return `Expected path "${this.source}" to not contain path "${this.target}"!`;
         }
     }
     exports.InvalidPathRelationError = InvalidPathRelationError;
-    ;
-    var PathRelationship;
-    (function (PathRelationship) {
-        PathRelationship[PathRelationship["IDENTICAL"] = 0] = "IDENTICAL";
-        PathRelationship[PathRelationship["DISJOINT"] = 1] = "DISJOINT";
-        PathRelationship[PathRelationship["CONTAINED"] = 2] = "CONTAINED";
-    })(PathRelationship || (PathRelationship = {}));
-    ;
-    function determinePathRelationship(source, target) {
-        let target_path_relative_to_source = libpath.relative(source, target);
-        if (target_path_relative_to_source === "") {
-            return PathRelationship.IDENTICAL;
-        }
-        if (target_path_relative_to_source.startsWith("..")) {
-            return PathRelationship.DISJOINT;
-        }
-        if (libpath.isAbsolute(target_path_relative_to_source)) {
-            return PathRelationship.DISJOINT;
-        }
-        return PathRelationship.CONTAINED;
-    }
     ;
     class InvalidEntryType extends Error {
         path;
@@ -697,7 +688,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
             this.path = path;
         }
         get message() {
-            return `Expected paths "${this.path}" to be a directory or a file!`;
+            return `Expected path "${this.path}" to be a directory or a file!`;
         }
     }
     exports.InvalidEntryType = InvalidEntryType;
@@ -731,6 +722,24 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 directories_created: 0,
                 directories_removed: 0
             };
+        }
+        containsPath(path, subject_fs, subject) {
+            if (subject_fs instanceof LocalFileSystem) {
+                let path_components = this.getPathComponents(path);
+                let subject_path_components = subject_fs.getPathComponents(subject);
+                if (subject_path_components.length < path_components.length) {
+                    return false;
+                }
+                for (let [index, path_component] of path_components.entries()) {
+                    if (subject_path_components[index] !== path_component) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            else {
+                return false;
+            }
         }
         async createDirectory(path) {
             process.stdout.write(`${terminal.stylize("create", terminal.FG_GREEN)} ${terminal.stylize("\"" + this.formatPath(path) + "\"", terminal.FG_YELLOW)} ${terminal.stylize("(directory)", terminal.FG_CYAN)}\n`);
@@ -788,6 +797,11 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 throw new InvalidEntryType(path);
             }
         }
+        getStatistics() {
+            return {
+                ...this.statistics
+            };
+        }
         joinPath(path, entry) {
             return libpath.join(path, entry);
         }
@@ -801,18 +815,18 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 this.statistics.directories_removed += 1;
             }
         }
-        async removeDirectoryEntries(target) {
-            let entries = await this.listDirectoryEntries(target);
-            for (let target_entry of entries.reverse()) {
-                let new_target = this.joinPath(target, target_entry);
-                let new_target_stat = await this.getStat(new_target);
-                if (new_target_stat != null) {
-                    if (new_target_stat.type === EntryType.DIRECTORY) {
-                        await this.removeDirectoryEntries(new_target);
-                        await this.removeDirectory(new_target);
+        async removeDirectoryEntries(path) {
+            let entries = await this.listDirectoryEntries(path);
+            for (let entry of entries.reverse()) {
+                let new_path = this.joinPath(path, entry);
+                let new_path_stat = await this.getStat(new_path);
+                if (new_path_stat != null) {
+                    if (new_path_stat.type === EntryType.DIRECTORY) {
+                        await this.removeDirectoryEntries(new_path);
+                        await this.removeDirectory(new_path);
                     }
                     else {
-                        await this.removeFile(new_target);
+                        await this.removeFile(new_path);
                     }
                 }
             }
@@ -827,6 +841,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     }
     ;
     async function processRecursively(source_fs, target_fs, source, target) {
+        let total = 0;
         let source_stat = await target_fs.getStat(source);
         let target_stat = await target_fs.getStat(target);
         if (source_stat != null) {
@@ -836,25 +851,25 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                         let source_entries = new Set(await source_fs.listDirectoryEntries(source));
                         let target_entries = new Set(await target_fs.listDirectoryEntries(target));
                         for (let source_entry of source_entries) {
-                            await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+                            total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
                         }
                         for (let target_entry of target_entries) {
                             if (!source_entries.has(target_entry)) {
-                                await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
+                                total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
                             }
                         }
                     }
                     else {
                         await target_fs.removeFile(target);
                         for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-                            await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+                            total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
                         }
                     }
                 }
                 else {
                     await target_fs.createDirectory(target);
                     for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-                        await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+                        total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
                     }
                 }
             }
@@ -890,6 +905,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 }
             }
         }
+        return total + 1;
     }
     ;
     exports.Config = guards.Object.of({
@@ -905,22 +921,37 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     }
     exports.loadConfig = loadConfig;
     ;
+    function createFileSystem(sync, path) {
+        try {
+            let url = new liburl.URL(path);
+            if (url.protocol === "scp:") {
+                // TODO: Return SCP implementation.
+            }
+            throw new UnsupportedProtocolError(url.protocol);
+        }
+        catch (error) { }
+        return new LocalFileSystem(sync);
+    }
+    ;
     async function diff(config) {
         for (let { source, target } of config.tasks) {
             try {
-                let source_fs = new LocalFileSystem(false);
-                let target_fs = new LocalFileSystem(false);
+                let start_ms = Date.now();
+                let source_fs = createFileSystem(false, source);
+                let target_fs = createFileSystem(false, target);
                 process.stdout.write(`Performing diff from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
                 if (await source_fs.getStat(source) == null) {
-                    throw new ExpectedPathError(source);
+                    throw new ExpectedPathError(source_fs.formatPath(source));
                 }
-                if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
-                    throw new InvalidPathRelationError(source, target);
+                if (source_fs.containsPath(source, target_fs, target)) {
+                    throw new InvalidPathRelationError(source_fs.formatPath(source), target_fs.formatPath(target));
                 }
-                if (determinePathRelationship(target, source) !== PathRelationship.DISJOINT) {
-                    throw new InvalidPathRelationError(target, source);
+                if (target_fs.containsPath(target, source_fs, source)) {
+                    throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
                 }
-                await processRecursively(source_fs, target_fs, source, target);
+                let total = await processRecursively(source_fs, target_fs, source, target);
+                let duration_ms = Date.now() - start_ms;
+                process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
             }
             catch (error) {
                 process.stderr.write(`An error occurred!\n`);
@@ -935,19 +966,22 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     async function sync(config) {
         for (let { source, target } of config.tasks) {
             try {
-                let source_fs = new LocalFileSystem(false);
-                let target_fs = new LocalFileSystem(true);
+                let start_ms = Date.now();
+                let source_fs = createFileSystem(false, source);
+                let target_fs = createFileSystem(true, target);
                 process.stdout.write(`Performing sync from ${terminal.stylize("\"" + source_fs.formatPath(source) + "\"", terminal.FG_YELLOW)} into ${terminal.stylize("\"" + target_fs.formatPath(target) + "\"", terminal.FG_YELLOW)}\n`);
                 if (await source_fs.getStat(source) == null) {
-                    throw new ExpectedPathError(source);
+                    throw new ExpectedPathError(source_fs.formatPath(source));
                 }
-                if (determinePathRelationship(source, target) !== PathRelationship.DISJOINT) {
-                    throw new InvalidPathRelationError(source, target);
+                if (source_fs.containsPath(source, target_fs, target)) {
+                    throw new InvalidPathRelationError(source_fs.formatPath(source), target_fs.formatPath(target));
                 }
-                if (determinePathRelationship(target, source) !== PathRelationship.DISJOINT) {
-                    throw new InvalidPathRelationError(target, source);
+                if (target_fs.containsPath(target, source_fs, source)) {
+                    throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
                 }
-                await processRecursively(source_fs, target_fs, source, target);
+                let total = await processRecursively(source_fs, target_fs, source, target);
+                let duration_ms = Date.now() - start_ms;
+                process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
             }
             catch (error) {
                 process.stderr.write(`An error occurred!\n`);

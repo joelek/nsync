@@ -1,4 +1,9 @@
 import * as guards from "@joelek/ts-autoguard/dist/lib-shared/guards";
+export declare class UnsupportedProtocolError extends Error {
+    protected protocol: string;
+    constructor(protocol: string);
+    get message(): string;
+}
 export declare class ExpectedPathError extends Error {
     protected path: string;
     constructor(path: string);
