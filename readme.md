@@ -36,4 +36,4 @@ NB: This project targets TypeScript 4 in strict mode.
 
 * Implement SCP support.
 * Document features.
-* Implement scheduling feature.
+* Implement sync rules on a per job basis.
