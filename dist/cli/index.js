@@ -9,17 +9,24 @@ async function diff() {
     };
     let source;
     let target;
+    let overwrite;
+    function clearTask() {
+        source = undefined;
+        target = undefined;
+        overwrite = undefined;
+    }
     function checkTask() {
         if (source != null && target != null) {
             config.tasks.push({
                 source,
-                target
+                target,
+                overwrite
             });
-            source = undefined;
-            target = undefined;
+            clearTask();
         }
     }
     let unrecognized_arguments = [];
+    let positional_index = 0;
     for (let [index, arg] of process.argv.slice(3).entries()) {
         let parts = null;
         if ((parts = /^--source=(.+)$/.exec(arg)) != null) {
@@ -32,19 +39,27 @@ async function diff() {
             checkTask();
             continue;
         }
+        if ((parts = /^--overwrite=(.+)$/.exec(arg)) != null) {
+            overwrite = parts[1] === "true";
+            checkTask();
+            continue;
+        }
         if ((parts = /^--config=(.+)$/.exec(arg)) != null) {
             let path = parts[1];
             config = lib.loadConfig(path);
+            clearTask();
             continue;
         }
-        if (index === 0) {
+        if (positional_index % 2 === 0) {
             source = arg;
             checkTask();
+            positional_index += 1;
             continue;
         }
-        if (index === 1) {
+        if (positional_index % 2 === 1) {
             target = arg;
             checkTask();
+            positional_index += 1;
             continue;
         }
         unrecognized_arguments.push(arg);
@@ -61,6 +76,8 @@ async function diff() {
         process.stderr.write(`		Set source path.\n`);
         process.stderr.write(`	--target=string\n`);
         process.stderr.write(`		Set target path.\n`);
+        process.stderr.write(`	--overwrite=boolean\n`);
+        process.stderr.write(`		Configure overwriting of files with identical metadata (defaults to false).\n`);
         process.stderr.write(`	--config=string\n`);
         process.stderr.write(`		Load config from path.\n`);
         process.exit(0);
@@ -77,17 +94,24 @@ async function sync() {
     };
     let source;
     let target;
+    let overwrite;
+    function clearTask() {
+        source = undefined;
+        target = undefined;
+        overwrite = undefined;
+    }
     function checkTask() {
         if (source != null && target != null) {
             config.tasks.push({
                 source,
-                target
+                target,
+                overwrite
             });
-            source = undefined;
-            target = undefined;
+            clearTask();
         }
     }
     let unrecognized_arguments = [];
+    let positional_index = 0;
     for (let [index, arg] of process.argv.slice(3).entries()) {
         let parts = null;
         if ((parts = /^--source=(.+)$/.exec(arg)) != null) {
@@ -100,19 +124,27 @@ async function sync() {
             checkTask();
             continue;
         }
+        if ((parts = /^--overwrite=(.+)$/.exec(arg)) != null) {
+            overwrite = parts[1] === "true";
+            checkTask();
+            continue;
+        }
         if ((parts = /^--config=(.+)$/.exec(arg)) != null) {
             let path = parts[1];
             config = lib.loadConfig(path);
+            clearTask();
             continue;
         }
-        if (index === 0) {
+        if (positional_index % 2 === 0) {
             source = arg;
             checkTask();
+            positional_index += 1;
             continue;
         }
-        if (index === 1) {
+        if (positional_index % 2 === 1) {
             target = arg;
             checkTask();
+            positional_index += 1;
             continue;
         }
         unrecognized_arguments.push(arg);
@@ -129,6 +161,8 @@ async function sync() {
         process.stderr.write(`		Set source path.\n`);
         process.stderr.write(`	--target=string\n`);
         process.stderr.write(`		Set target path.\n`);
+        process.stderr.write(`	--overwrite=boolean\n`);
+        process.stderr.write(`		Configure overwriting of files with identical metadata (defaults to false).\n`);
         process.stderr.write(`	--config=string\n`);
         process.stderr.write(`		Load config from path.\n`);
         process.exit(0);

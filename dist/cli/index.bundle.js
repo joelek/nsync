@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 define("build/app", [], {
     "name": "@joelek/nsync",
-    "timestamp": 1723701269075,
+    "timestamp": 1723723490924,
     "version": "0.1.1"
 });
 define("node_modules/@joelek/ts-autoguard/dist/lib-shared/serialization", ["require", "exports"], function (require, exports) {
@@ -720,7 +720,8 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 files_created: 0,
                 files_removed: 0,
                 directories_created: 0,
-                directories_removed: 0
+                directories_removed: 0,
+                bytes_written: 0
             };
         }
         containsPath(path, subject_fs, subject) {
@@ -757,6 +758,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                         let writable = libfs.createWriteStream(path);
                         writable.on("close", () => {
                             this.statistics.files_created += 1;
+                            this.statistics.bytes_written += writable.bytesWritten;
                             resolve();
                         });
                         writable.on("error", (error) => {
@@ -840,7 +842,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
         }
     }
     ;
-    async function processRecursively(source_fs, target_fs, source, target) {
+    async function processRecursively(source_fs, target_fs, source, target, overwrite) {
         let total = 0;
         let source_stat = await target_fs.getStat(source);
         let target_stat = await target_fs.getStat(target);
@@ -851,25 +853,25 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                         let source_entries = new Set(await source_fs.listDirectoryEntries(source));
                         let target_entries = new Set(await target_fs.listDirectoryEntries(target));
                         for (let source_entry of source_entries) {
-                            total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+                            total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry), overwrite);
                         }
                         for (let target_entry of target_entries) {
                             if (!source_entries.has(target_entry)) {
-                                total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry));
+                                total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, target_entry), target_fs.joinPath(target, target_entry), overwrite);
                             }
                         }
                     }
                     else {
                         await target_fs.removeFile(target);
                         for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-                            total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+                            total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry), overwrite);
                         }
                     }
                 }
                 else {
                     await target_fs.createDirectory(target);
                     for (let source_entry of await source_fs.listDirectoryEntries(source)) {
-                        total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry));
+                        total += await processRecursively(source_fs, target_fs, source_fs.joinPath(source, source_entry), target_fs.joinPath(target, source_entry), overwrite);
                     }
                 }
             }
@@ -883,7 +885,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                     else {
                         let timestamp_difference = source_stat.timestamp !== target_stat.timestamp;
                         let size_difference = source_stat.size !== target_stat.size;
-                        if (timestamp_difference || size_difference) {
+                        if (timestamp_difference || size_difference || overwrite) {
                             await target_fs.removeFile(target);
                             await target_fs.createFile(target, await source_fs.createReadable(source), source_stat.timestamp);
                         }
@@ -912,6 +914,8 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
         tasks: guards.Array.of(guards.Object.of({
             source: guards.String,
             target: guards.String
+        }, {
+            overwrite: guards.Boolean
         }))
     });
     function loadConfig(path) {
@@ -934,7 +938,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     }
     ;
     async function diff(config) {
-        for (let { source, target } of config.tasks) {
+        for (let { source, target, overwrite } of config.tasks) {
             try {
                 let start_ms = Date.now();
                 let source_fs = createFileSystem(false, source);
@@ -949,9 +953,10 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 if (target_fs.containsPath(target, source_fs, source)) {
                     throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
                 }
-                let total = await processRecursively(source_fs, target_fs, source, target);
+                let total = await processRecursively(source_fs, target_fs, source, target, overwrite ?? false);
+                let statistics = target_fs.getStatistics();
                 let duration_ms = Date.now() - start_ms;
-                process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
+                process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires and wrote ${terminal.stylize(statistics.bytes_written, terminal.FG_CYAN)} bytes in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
             }
             catch (error) {
                 process.stderr.write(`An error occurred!\n`);
@@ -964,7 +969,7 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
     exports.diff = diff;
     ;
     async function sync(config) {
-        for (let { source, target } of config.tasks) {
+        for (let { source, target, overwrite } of config.tasks) {
             try {
                 let start_ms = Date.now();
                 let source_fs = createFileSystem(false, source);
@@ -979,9 +984,10 @@ define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autogu
                 if (target_fs.containsPath(target, source_fs, source)) {
                     throw new InvalidPathRelationError(target_fs.formatPath(target), source_fs.formatPath(source));
                 }
-                let total = await processRecursively(source_fs, target_fs, source, target);
+                let total = await processRecursively(source_fs, target_fs, source, target, overwrite ?? false);
+                let statistics = target_fs.getStatistics();
                 let duration_ms = Date.now() - start_ms;
-                process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
+                process.stdout.write(`Checked a total of ${terminal.stylize(total, terminal.FG_CYAN)} entires and wrote ${terminal.stylize(statistics.bytes_written, terminal.FG_CYAN)} bytes in ${terminal.stylize(duration_ms, terminal.FG_CYAN)} ms\n`);
             }
             catch (error) {
                 process.stderr.write(`An error occurred!\n`);
@@ -1004,17 +1010,24 @@ define("build/cli/index", ["require", "exports", "build/app", "build/lib/index"]
         };
         let source;
         let target;
+        let overwrite;
+        function clearTask() {
+            source = undefined;
+            target = undefined;
+            overwrite = undefined;
+        }
         function checkTask() {
             if (source != null && target != null) {
                 config.tasks.push({
                     source,
-                    target
+                    target,
+                    overwrite
                 });
-                source = undefined;
-                target = undefined;
+                clearTask();
             }
         }
         let unrecognized_arguments = [];
+        let positional_index = 0;
         for (let [index, arg] of process.argv.slice(3).entries()) {
             let parts = null;
             if ((parts = /^--source=(.+)$/.exec(arg)) != null) {
@@ -1027,19 +1040,27 @@ define("build/cli/index", ["require", "exports", "build/app", "build/lib/index"]
                 checkTask();
                 continue;
             }
+            if ((parts = /^--overwrite=(.+)$/.exec(arg)) != null) {
+                overwrite = parts[1] === "true";
+                checkTask();
+                continue;
+            }
             if ((parts = /^--config=(.+)$/.exec(arg)) != null) {
                 let path = parts[1];
                 config = lib.loadConfig(path);
+                clearTask();
                 continue;
             }
-            if (index === 0) {
+            if (positional_index % 2 === 0) {
                 source = arg;
                 checkTask();
+                positional_index += 1;
                 continue;
             }
-            if (index === 1) {
+            if (positional_index % 2 === 1) {
                 target = arg;
                 checkTask();
+                positional_index += 1;
                 continue;
             }
             unrecognized_arguments.push(arg);
@@ -1056,6 +1077,8 @@ define("build/cli/index", ["require", "exports", "build/app", "build/lib/index"]
             process.stderr.write(`		Set source path.\n`);
             process.stderr.write(`	--target=string\n`);
             process.stderr.write(`		Set target path.\n`);
+            process.stderr.write(`	--overwrite=boolean\n`);
+            process.stderr.write(`		Configure overwriting of files with identical metadata (defaults to false).\n`);
             process.stderr.write(`	--config=string\n`);
             process.stderr.write(`		Load config from path.\n`);
             process.exit(0);
@@ -1072,17 +1095,24 @@ define("build/cli/index", ["require", "exports", "build/app", "build/lib/index"]
         };
         let source;
         let target;
+        let overwrite;
+        function clearTask() {
+            source = undefined;
+            target = undefined;
+            overwrite = undefined;
+        }
         function checkTask() {
             if (source != null && target != null) {
                 config.tasks.push({
                     source,
-                    target
+                    target,
+                    overwrite
                 });
-                source = undefined;
-                target = undefined;
+                clearTask();
             }
         }
         let unrecognized_arguments = [];
+        let positional_index = 0;
         for (let [index, arg] of process.argv.slice(3).entries()) {
             let parts = null;
             if ((parts = /^--source=(.+)$/.exec(arg)) != null) {
@@ -1095,19 +1125,27 @@ define("build/cli/index", ["require", "exports", "build/app", "build/lib/index"]
                 checkTask();
                 continue;
             }
+            if ((parts = /^--overwrite=(.+)$/.exec(arg)) != null) {
+                overwrite = parts[1] === "true";
+                checkTask();
+                continue;
+            }
             if ((parts = /^--config=(.+)$/.exec(arg)) != null) {
                 let path = parts[1];
                 config = lib.loadConfig(path);
+                clearTask();
                 continue;
             }
-            if (index === 0) {
+            if (positional_index % 2 === 0) {
                 source = arg;
                 checkTask();
+                positional_index += 1;
                 continue;
             }
-            if (index === 1) {
+            if (positional_index % 2 === 1) {
                 target = arg;
                 checkTask();
+                positional_index += 1;
                 continue;
             }
             unrecognized_arguments.push(arg);
@@ -1124,6 +1162,8 @@ define("build/cli/index", ["require", "exports", "build/app", "build/lib/index"]
             process.stderr.write(`		Set source path.\n`);
             process.stderr.write(`	--target=string\n`);
             process.stderr.write(`		Set target path.\n`);
+            process.stderr.write(`	--overwrite=boolean\n`);
+            process.stderr.write(`		Configure overwriting of files with identical metadata (defaults to false).\n`);
             process.stderr.write(`	--config=string\n`);
             process.stderr.write(`		Load config from path.\n`);
             process.exit(0);

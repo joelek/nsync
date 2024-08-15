@@ -24,6 +24,7 @@ export declare const Config: guards.ObjectGuard<{
     tasks: guards.Array<{
         source: string;
         target: string;
+        overwrite?: boolean | undefined;
     }>;
 }, {}>;
 export type Config = ReturnType<typeof Config["as"]>;
