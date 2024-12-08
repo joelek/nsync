@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sync = exports.diff = exports.loadConfig = exports.Config = exports.InvalidEntryType = exports.InvalidPathRelationError = exports.ExpectedPathError = exports.UnsupportedProtocolError = void 0;
-const guards = require("@joelek/ts-autoguard/dist/lib-shared/guards");
+const guards = require("@joelek/autoguard/dist/lib-shared/guards");
 const libfs = require("fs");
 const libpath = require("path");
 const liburl = require("url");

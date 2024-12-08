@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 define("build/app", [], {
     "name": "@joelek/nsync",
-    "timestamp": 1723723512508,
+    "timestamp": 1733671913605,
     "version": "0.2.0"
 });
-define("node_modules/@joelek/ts-autoguard/dist/lib-shared/serialization", ["require", "exports"], function (require, exports) {
+define("node_modules/@joelek/autoguard/dist/lib-shared/serialization", ["require", "exports"], function (require, exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.MessageSerializer = exports.MessageGuardError = exports.MessageGuardBase = void 0;
@@ -80,7 +80,7 @@ define("node_modules/@joelek/ts-autoguard/dist/lib-shared/serialization", ["requ
     exports.MessageSerializer = MessageSerializer;
     ;
 });
-define("node_modules/@joelek/ts-autoguard/dist/lib-shared/guards", ["require", "exports", "node_modules/@joelek/ts-autoguard/dist/lib-shared/serialization"], function (require, exports, serialization) {
+define("node_modules/@joelek/autoguard/dist/lib-shared/guards", ["require", "exports", "node_modules/@joelek/autoguard/dist/lib-shared/serialization"], function (require, exports, serialization) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -439,7 +439,7 @@ define("node_modules/@joelek/ts-autoguard/dist/lib-shared/guards", ["require", "
             this.record = record;
         }
         as(subject, path = "") {
-            if ((subject != null) && (subject.constructor === globalThis.String)) {
+            if ((subject != null) && (subject.constructor === globalThis.String || subject.constructor === globalThis.Number)) {
                 let string = subject;
                 if (string in this.record) {
                     return string;
@@ -638,7 +638,7 @@ define("build/lib/terminal", ["require", "exports"], function (require, exports)
     exports.stylize = stylize;
     ;
 });
-define("build/lib/index", ["require", "exports", "node_modules/@joelek/ts-autoguard/dist/lib-shared/guards", "fs", "path", "url", "build/lib/terminal"], function (require, exports, guards, libfs, libpath, liburl, terminal) {
+define("build/lib/index", ["require", "exports", "node_modules/@joelek/autoguard/dist/lib-shared/guards", "fs", "path", "url", "build/lib/terminal"], function (require, exports, guards, libfs, libpath, liburl, terminal) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     Object.defineProperty(exports, "__esModule", { value: true });

@@ -1,4 +1,4 @@
-import * as guards from "@joelek/ts-autoguard/dist/lib-shared/guards";
+import * as guards from "@joelek/autoguard/dist/lib-shared/guards";
 export declare class UnsupportedProtocolError extends Error {
     protected protocol: string;
     constructor(protocol: string);
