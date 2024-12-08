@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 define("build/app", [], {
     "name": "@joelek/nsync",
-    "timestamp": 1733671913605,
-    "version": "0.2.0"
+    "timestamp": 1733671941289,
+    "version": "0.2.1"
 });
 define("node_modules/@joelek/autoguard/dist/lib-shared/serialization", ["require", "exports"], function (require, exports) {
     "use strict";
