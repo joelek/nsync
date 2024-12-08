@@ -1,4 +1,4 @@
-import * as guards from "@joelek/ts-autoguard/dist/lib-shared/guards";
+import * as guards from "@joelek/autoguard/dist/lib-shared/guards";
 import * as libfs from "fs";
 import * as libpath from "path";
 import * as libstream from "stream";
